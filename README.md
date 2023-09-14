@@ -1,1 +1,2 @@
-# Dynamic-RPC
+#这是一个参考dubbo基于netty和zookeeper实现的RPC组件
+项目技术选型
