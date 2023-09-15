@@ -17,11 +17,13 @@ public class Application {
 
         DynamicBootstrap.getInstance().
                 application("demo")
-                .registry(new RegistryConfig("zookeeper://127.0.0.1:2181"))
-                .protocol(new ProtocolConfig())
+                .registry(new RegistryConfig("zookeeper://172.29.207.114"))
+//                .registry(new RegistryConfig())
+                .protocol(new ProtocolConfig("jdk"))
                 .publish(service)
                 .start();
 
 
     }
 }
+

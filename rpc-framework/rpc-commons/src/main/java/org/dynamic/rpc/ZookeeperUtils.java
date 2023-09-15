@@ -1,6 +1,7 @@
 package org.dynamic.rpc;
 
 import org.apache.zookeeper.*;
+import org.dynamic.rpc.exception.ZooKeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,8 +19,10 @@ public class ZookeeperUtils {
     private static final Logger log = LoggerFactory.getLogger(ZookeeperUtils.class);
 
     public static ZooKeeper createZookeeper(){
+
         String connectString = Constant.DEFAULT_CONNECTSTRING;
         int timeout = Constant.DEFAULT_TIMEOUT;
+
         return createZookeeper(connectString,timeout);
     }
     
@@ -43,6 +46,8 @@ public class ZookeeperUtils {
                 }
             });
             countDownLatch.await();
+            Thread.sleep(10);
+
             return zooKeeper;
             
         } catch (InterruptedException | IOException e) {
@@ -83,7 +88,7 @@ public class ZookeeperUtils {
 
     public static boolean exists(ZooKeeper zookeeper, String node,Watcher watcher){
         try {
-            return zookeeper.exists(node, watcher) != null;
+            return zookeeper.exists(node, watcher) == null;
         } catch (KeeperException | InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -104,7 +109,7 @@ public class ZookeeperUtils {
             return zookeeper.getChildren(node, watcher);
         } catch (KeeperException | InterruptedException e) {
             log.error("获取子节点【{}】时发生异常",node,e);
-            throw new RuntimeException(e);
+            throw new ZooKeeperException(e);
         }
 
     }

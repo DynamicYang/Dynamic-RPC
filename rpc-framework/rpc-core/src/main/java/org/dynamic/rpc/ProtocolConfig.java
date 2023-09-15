@@ -7,4 +7,8 @@ package org.dynamic.rpc;
  */
 public class ProtocolConfig {
     String protocolName;
+
+    public ProtocolConfig(String protocolName) {
+        this.protocolName = protocolName;
+    }
 }
