@@ -1,6 +1,8 @@
-package org.dynamic.rpc;
+package org.dynamic.rpc.utils;
 
 import org.apache.zookeeper.*;
+import org.dynamic.rpc.Constant;
+import org.dynamic.rpc.ZooKeeperNode;
 import org.dynamic.rpc.exception.ZooKeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +43,7 @@ public class ZookeeperUtils {
                 
                 //只有连接成功才放行
                 if (event.getState() == Watcher.Event.KeeperState.SyncConnected){
-                    log.debug("客户端连接成功。");
+                    log.info("客户端连接成功。");
                     countDownLatch.countDown();
                 }
             });

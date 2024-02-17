@@ -1,11 +1,22 @@
 package org.dynamic.rpc;
 
+import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import org.dynamic.rpc.discovery.Registry;
+import org.dynamic.rpc.exception.NetworkException;
+import org.dynamic.rpc.proxy.handler.ConsumerInvocationHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.InetSocketAddress;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -44,23 +55,12 @@ public class ReferenceConfig<T> {
      **/
     public T get() {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        Class[] cLasses = new Class[]{serviceInterface};
+        Class<?>[] cLasses = new Class[]{serviceInterface};
 
-        Object serviceProxy =  Proxy.newProxyInstance(classLoader, cLasses, (proxy, method, args) -> {
-            log.info("method: " + method.getName());
-            log.info("args" + args);
-            Registry registry = registryConfig.getRegistry();
+        InvocationHandler handler = new ConsumerInvocationHandler(registryConfig.getRegistry(),serviceInterface);
 
-            //todo q:每次调用远程服务都要去远程拉取服务列表吗？
-            InetSocketAddress address = registry.lookup(serviceInterface.getName());
-            if (log.isDebugEnabled()){
-                log.debug("服务调用方发现了，服务【{}】可用主机【{}】",serviceInterface.getName(),address.getAddress());
-            }
-
-            return null;
-        });
-
-        return (T) serviceProxy  ;
+        Object serviceProxy = Proxy.newProxyInstance(classLoader, cLasses, handler);
+        return (T) serviceProxy ;
 
     }
 }

@@ -5,7 +5,7 @@ package org.dynamic.rpc;
  * @create: 2023-09-14
  * @Description:
  */
-public class Application {
+public class ConsumerApplication {
 
 
     public static void main(String[] args) {

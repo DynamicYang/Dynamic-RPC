@@ -7,7 +7,7 @@ import org.dynamic.rpc.serviceImpl.HelloServiceImpl;
  * @create: 2023-09-14
  * @Description:
  */
-public class Application {
+public class ProviderApplication {
     public static void main(String[] args) {
 
         ServiceConfig<HelloService> service = new ServiceConfig<>();

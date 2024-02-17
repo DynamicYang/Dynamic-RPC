@@ -10,8 +10,8 @@ import java.net.SocketException;
 public class NetworkException extends RuntimeException {
 
 
-    public NetworkException() {
-
+    public NetworkException(String msg) {
+            super(msg);
     }
 
     public NetworkException(Throwable cause) {

@@ -1,6 +1,14 @@
 package org.dynamic.rpc;
 
 
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.*;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.CharsetUtil;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.ZooKeeper;
 import org.dynamic.rpc.discovery.Impl.ZookeeperRegistry;
@@ -8,8 +16,12 @@ import org.dynamic.rpc.discovery.Registry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -21,6 +33,8 @@ public class DynamicBootstrap {
     private static final Logger log = LoggerFactory.getLogger(DynamicBootstrap.class);
     private static final DynamicBootstrap instance = new DynamicBootstrap();
 
+    private static int PORT = 8088;
+
     private RegistryConfig registryConfig;
     private ProtocolConfig protocolConfig;
     private ServiceConfig<?> serviceConfig;
@@ -28,6 +42,12 @@ public class DynamicBootstrap {
     private Registry registryCenter;
     //维护已经发布且暴露的服务列表 key->interface的全限定名  value是定义好的serviceConfig
     private static final  Map<String,ServiceConfig<?>> SERVICES_COLLECTION = new HashMap<>(16);
+    //连接的缓存 如果使用InetSocketAddress作为key,一定要看他有没有重写equals方法
+    public static final Map<InetSocketAddress, Channel> CHANNEL_CACHE = new ConcurrentHashMap<>(16);
+
+    //定义全局的对外挂起的completableFuture,key为标识
+    public static final Map<Long, CompletableFuture<Object>> PENDING_REQUEST = new ConcurrentHashMap<>(128);
+
 
 
 
@@ -75,11 +95,51 @@ public class DynamicBootstrap {
     }
 
     public void start(){
+        //创建bossGroup
+        NioEventLoopGroup bossGroup = new NioEventLoopGroup(2);
+        NioEventLoopGroup workerGroup = new NioEventLoopGroup(10);
+        ServerBootstrap bootstrap = new ServerBootstrap();//用于启动nio服务
         try {
-            Thread.sleep(1000000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            bootstrap.group(bossGroup, workerGroup)
+                    .channel(NioServerSocketChannel.class)//通过工厂方法设计模式实例化一个channel
+                    .localAddress(new InetSocketAddress(PORT))
+                    .childHandler(new ChannelInitializer<SocketChannel>() {
+                        @Override
+                        protected void initChannel(SocketChannel socketChannel) throws Exception {
+                            socketChannel.pipeline().addLast(new SimpleChannelInboundHandler<>() {
+                                @Override
+                                protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+                                    ByteBuf byteBuf = (ByteBuf) msg;
+                                    log.info("收到消息{}",byteBuf.toString(CharsetUtil.UTF_8));
+
+                                    //先直接写回去
+                                    ctx.channel().writeAndFlush(Unpooled.copiedBuffer("dynamic".getBytes()));
+                                }
+                            });
+                        }
+                    });
+            //绑定服务器，该实例将提供有关IO操作的结果或者状态的信息
+            ChannelFuture channelFuture = bootstrap.bind().sync();
+           if(log.isDebugEnabled()){
+               log.debug("消息发送成功");
+           }
+            //阻塞操作，closeFuture()开启了一个channel的监听器(这期间channel在进行各项工作),知道链路断开
+            //closeFuture().sync();会阻塞点当前线程，知道通道关闭操作完成。这可以用于确保在关闭通道之前，程序不会提前退出
+            channelFuture.channel().closeFuture().sync();
+        }catch (Exception e){
+            e.printStackTrace();
+        }finally {
+            try {
+                bossGroup.shutdownGracefully().sync();
+                workerGroup.shutdownGracefully().sync();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
         }
+
+
+
 
     }
 

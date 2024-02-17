@@ -1,4 +1,4 @@
-package org.dynamic.rpc;
+package org.dynamic.rpc.utils;
 
 import org.dynamic.rpc.exception.NetworkException;
 import org.slf4j.Logger;
@@ -15,35 +15,7 @@ import java.util.Enumeration;
 public class NetUtils {
 
     private static final Logger log = LoggerFactory.getLogger(NetUtils.class);
-    public static String getIp(){
 
-
-        try {
-            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-            while (interfaces.hasMoreElements()){
-                NetworkInterface iface = interfaces.nextElement();
-                //过滤非回环接口和虚拟接口
-                if( iface.isLoopback() || iface.isVirtual() || iface.isUp()){
-                    continue;
-                }
-                Enumeration<InetAddress> addresses = iface.getInetAddresses();
-                while (addresses.hasMoreElements()){
-                    InetAddress addr = addresses.nextElement();
-                  //过滤环回地址和IPV6地址
-                    if(addr instanceof Inet6Address || addr.isLoopbackAddress()){
-                        continue;
-                    }
-                    return addr.getHostAddress ();
-                }
-            }
-            log.debug("没有获取到网络信息");
-            throw new NetworkException();
-        } catch (SocketException e) {
-            log.error("获取局域网ip时发生异常");
-            throw new NetworkException(e);
-        }
-
-    }
     /*
    获取本机网内地址
     */

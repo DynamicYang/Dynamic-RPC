@@ -7,7 +7,7 @@ package org.dynamic.rpc;
  */
 public class Constant {
 //    public static String DEFAULT_CONNECTSTRING = "172.29.207.114:2181";
-    public static String DEFAULT_CONNECTSTRING = "zookeeper://127.0.0.1:2181";
+    public static String DEFAULT_CONNECTSTRING = "127.0.0.1:2199";
     public static int DEFAULT_TIMEOUT = 10000;
 
     public static String BASE_NODE = "/rpc-metadata";

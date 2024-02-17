@@ -5,13 +5,13 @@ import org.apache.zookeeper.ZooKeeper;
 import org.dynamic.rpc.*;
 import org.dynamic.rpc.discovery.AbstractRegistry;
 import org.dynamic.rpc.exception.DiscoveryException;
+import org.dynamic.rpc.utils.NetUtils;
+import org.dynamic.rpc.utils.ZookeeperUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 import java.util.List;
-import java.util.Timer;
-import java.util.stream.Collectors;
 
 /**
  * @author: DynamicYang
