@@ -8,6 +8,8 @@ import org.dynamic.rpc.DynamicBootstrap;
 import org.dynamic.rpc.NettyBootstrapInitializer;
 import org.dynamic.rpc.discovery.Registry;
 import org.dynamic.rpc.exception.NetworkException;
+import org.dynamic.rpc.transport.message.DynamicRPCRequest;
+import org.dynamic.rpc.transport.message.Payload;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -34,7 +36,7 @@ public class ConsumerInvocationHandler implements InvocationHandler {
     }
 
     @Override
-    public Object invoke(Object proxy, Method method, Object[] args) {
+    public Object invoke(Object proxy, Method method, Object[] args) throws ExecutionException, InterruptedException, TimeoutException {
         log.info("method: " + method.getName());
         log.info("args" + args);
 
@@ -52,6 +54,29 @@ public class ConsumerInvocationHandler implements InvocationHandler {
         }
 
         Channel channel = getAvailableChannel(address);
+
+
+        /*
+         * ---------------------报文封装--------------------------
+         *
+         *
+         */
+
+        Payload payload = Payload.builder()
+                        .interfaceName(serviceInterface.getName())
+                        .methodName(method.getName())
+                        .parameterTypes(method.getParameterTypes())
+                        .parametersValues(args)
+                        .returnType(method.getReturnType())
+                        .build();
+
+
+        DynamicRPCRequest rpcRequest = DynamicRPCRequest.builder()
+                .requestId(1L)
+                .compressType((byte) 1)
+                .requestType((byte) 1)
+                .serializationType((byte) 1)
+                .payload(payload).build();
 /*
             *info 同步方案
             *
@@ -72,9 +97,9 @@ public class ConsumerInvocationHandler implements InvocationHandler {
 
         CompletableFuture<Object> completableFuture = new CompletableFuture<>();
         // *info 使用全局的completableFuture
-        DynamicBootstrap.PENDING_REQUEST.put(1l,completableFuture);
+        DynamicBootstrap.PENDING_REQUEST.put(1L,completableFuture);
 // *info promise
-        channel.writeAndFlush(Unpooled.copiedBuffer(args[0].toString().getBytes())).addListener((ChannelFutureListener) promise->{
+        channel.writeAndFlush(rpcRequest).addListener((ChannelFutureListener) promise->{
 
             if(!promise.isSuccess()){
                 completableFuture.completeExceptionally(promise.cause());
@@ -87,16 +112,18 @@ public class ConsumerInvocationHandler implements InvocationHandler {
 
 //            Object o = completableFuture.get(3,TimeUnit.SECONDS);
         // q: 如过没有处理这个completableFuture会阻塞点当前线程，等待complete方法的执行
-        //我们需要在哪里调用complete方法得到结果，很明显是pipeline中最终handler的处理结果
-        try {
-            return  completableFuture.get(10,TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        } catch (ExecutionException e) {
-            throw new RuntimeException(e);
-        } catch (TimeoutException e) {
-            throw new RuntimeException(e);
-        }
+        //需要在哪里调用complete方法得到结果？，很明显是pipeline中最终handler的处理结果
+//        try {
+//
+//        } catch (InterruptedException e) {
+//            throw new RuntimeException(e);
+//        } catch (ExecutionException e) {
+//            throw new RuntimeException(e);
+//        } catch (TimeoutException e) {
+//            throw new RuntimeException(e);
+//        }
+        Object result = completableFuture.get(10,TimeUnit.SECONDS);
+        return result;
     }
 
 
@@ -128,11 +155,8 @@ public class ConsumerInvocationHandler implements InvocationHandler {
             //阻塞获取channel
             try {
                 channel = channelFuture.get(3, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            } catch (ExecutionException e) {
-                throw new RuntimeException(e);
-            } catch (TimeoutException e) {
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                log.error("获取channel异常",e);
                 throw new RuntimeException(e);
             }
 

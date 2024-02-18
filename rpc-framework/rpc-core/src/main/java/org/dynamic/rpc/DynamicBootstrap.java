@@ -8,9 +8,13 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.CharsetUtil;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.ZooKeeper;
+import org.dynamic.rpc.channel.handler.inbound.DynamicRPCMessageDecoder;
+import org.dynamic.rpc.channel.handler.outbound.DynamicRPCMessageEncoder;
 import org.dynamic.rpc.discovery.Impl.ZookeeperRegistry;
 import org.dynamic.rpc.discovery.Registry;
 import org.slf4j.Logger;
@@ -106,21 +110,14 @@ public class DynamicBootstrap {
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel socketChannel) throws Exception {
-                            socketChannel.pipeline().addLast(new SimpleChannelInboundHandler<>() {
-                                @Override
-                                protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-                                    ByteBuf byteBuf = (ByteBuf) msg;
-                                    log.info("收到消息{}",byteBuf.toString(CharsetUtil.UTF_8));
-
-                                    //先直接写回去
-                                    ctx.channel().writeAndFlush(Unpooled.copiedBuffer("dynamic".getBytes()));
-                                }
-                            });
+                            socketChannel.pipeline()
+                                    .addLast(new LoggingHandler(LogLevel.DEBUG))
+                                    .addLast(new DynamicRPCMessageDecoder());
                         }
                     });
             //绑定服务器，该实例将提供有关IO操作的结果或者状态的信息
             ChannelFuture channelFuture = bootstrap.bind().sync();
-           if(log.isDebugEnabled()){
+            if(log.isDebugEnabled()){
                log.debug("消息发送成功");
            }
             //阻塞操作，closeFuture()开启了一个channel的监听器(这期间channel在进行各项工作),知道链路断开

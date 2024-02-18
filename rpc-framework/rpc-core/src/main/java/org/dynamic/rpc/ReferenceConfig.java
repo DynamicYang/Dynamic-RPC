@@ -55,7 +55,7 @@ public class ReferenceConfig<T> {
      **/
     public T get() {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        Class<?>[] cLasses = new Class[]{serviceInterface};
+        Class<T>[] cLasses = new Class[]{serviceInterface};
 
         InvocationHandler handler = new ConsumerInvocationHandler(registryConfig.getRegistry(),serviceInterface);
 
