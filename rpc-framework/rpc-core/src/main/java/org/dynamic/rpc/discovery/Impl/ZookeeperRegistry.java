@@ -40,7 +40,7 @@ public class ZookeeperRegistry extends AbstractRegistry {
 
         }
         //创建本机服务结点,当前服务结点应该是一个临时结点，以ip:port作为本机服务名称的标识
-        String currentNodePath = serviceParentPath + "/" + NetUtils.getInet4Address()+":8088";
+        String currentNodePath = serviceParentPath + "/" + NetUtils.getInet4Address()+":"+DynamicBootstrap.PORT;
         if (ZookeeperUtils.exists(zooKeeper,currentNodePath,null)){
             ZooKeeperNode currentNode = new ZooKeeperNode(currentNodePath,"demo".getBytes());
             boolean is =  ZookeeperUtils.createNode(zooKeeper,currentNode,null,CreateMode.PERSISTENT);
@@ -59,7 +59,7 @@ public class ZookeeperRegistry extends AbstractRegistry {
     }
 
     @Override
-    public InetSocketAddress lookup(String serviceName) {
+    public List<InetSocketAddress> lookup(String serviceName) {
         //找到服务对应的结点
         String serviceNodePath = Constant.BASE_PROVIDER_NODE + "/" + serviceName;
         //从zk中获取他的子节点
@@ -71,6 +71,6 @@ public class ZookeeperRegistry extends AbstractRegistry {
         if(collect.size() == 0){
             throw new DiscoveryException("未发现可用的服务主机");
         }
-        return collect.get(0);
+        return collect;
     }
 }

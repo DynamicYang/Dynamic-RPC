@@ -3,9 +3,14 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 import lombok.extern.slf4j.Slf4j;
-import org.dynamic.rpc.transport.message.DynamicRPCRequest;
+import org.dynamic.rpc.DynamicBootstrap;
+import org.dynamic.rpc.compress.Compressor;
+import org.dynamic.rpc.compress.CompressorFactory;
+import org.dynamic.rpc.serialization.Serializer;
+import org.dynamic.rpc.serialization.SerializerFactory;
+import org.dynamic.rpc.transport.message.request.DynamicRPCRequest;
 import org.dynamic.rpc.transport.message.MessageFormatConstant;
-import org.dynamic.rpc.transport.message.Payload;
+import org.dynamic.rpc.transport.message.request.Payload;
 import java.io.*;
 
 
@@ -23,7 +28,7 @@ import java.io.*;
  * 8位 request id(请求id)
  */
 @Slf4j
-public class DynamicRPCMessageEncoder extends MessageToByteEncoder<DynamicRPCRequest>  {
+public class DynamicRPCRequestEncoder extends MessageToByteEncoder<DynamicRPCRequest>  {
 
 
 
@@ -38,25 +43,37 @@ public class DynamicRPCMessageEncoder extends MessageToByteEncoder<DynamicRPCReq
         out.writeShort(MessageFormatConstant.HEADER_LENGTH);
 
         //   总长度未知
-        out.writerIndex( out.writerIndex() + 4);
+        out.writerIndex( out.writerIndex() + MessageFormatConstant.FULL_LENGTH);
         //三个类型
         out.writeByte(msg.getRequestType());
         out.writeByte(msg.getCompressType());
         out.writeByte(msg.getSerializationType());
 
+        //序列化
+        Serializer serializer  = SerializerFactory.getSerializerWrapper(DynamicBootstrap.SERIALIZE_TYPE).getSerializer();
+        byte[] body = serializer.serialize(msg.getPayload());
+
+        // 压缩
+        Compressor compressor = CompressorFactory.getCompressorWrapper(msg.getCompressType()).getCompressor();
+        body = compressor.compress(body);
 
         // 写入请求体
-        byte[] body = getBodyBytes(msg.getPayload());
-        out.writeBytes(body);
+        if (body != null){
+            out.writeBytes(body);
+        }
+        int bodyLength = body == null ? 0 : body.length;
+
         // 重新处理报文的总长度
         //先保存当前写指针的位置
         int index = out.writerIndex();
-        out.writerIndex(7);
-        out.writeInt(MessageFormatConstant.HEADER_LENGTH+body.length);
+        out.writerIndex(MessageFormatConstant.MAGIC.length + MessageFormatConstant.VERSION_LENGTH + MessageFormatConstant.HEADER_LENGTH_LENGTH);
+        out.writeInt(MessageFormatConstant.HEADER_LENGTH+bodyLength);
 
         //将写指针归位
         out.writerIndex(index);
-
+        if(log.isDebugEnabled()){
+            log.debug("请求【{}】已经在客户端完成请求编码，",msg.getRequestId());
+        }
 
 
 
@@ -64,7 +81,10 @@ public class DynamicRPCMessageEncoder extends MessageToByteEncoder<DynamicRPCReq
     }
 
     private byte[] getBodyBytes(Payload payload){
-        // todo 还需要针对不同的消息类型进行不同的处理
+
+        if(payload == null){
+            return null;
+        }
         //序列化
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         ObjectOutputStream objectOutputStream = null;

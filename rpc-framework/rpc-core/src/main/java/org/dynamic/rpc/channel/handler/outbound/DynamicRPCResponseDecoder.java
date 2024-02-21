@@ -1,27 +1,32 @@
-package org.dynamic.rpc.channel.handler.inbound;
+package org.dynamic.rpc.channel.handler.outbound;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import lombok.extern.slf4j.Slf4j;
-import org.dynamic.rpc.transport.message.DynamicRPCRequest;
+import org.dynamic.rpc.compress.Compressor;
+import org.dynamic.rpc.compress.CompressorFactory;
+import org.dynamic.rpc.enumration.RequestType;
+import org.dynamic.rpc.serialization.Serializer;
+import org.dynamic.rpc.serialization.SerializerFactory;
 import org.dynamic.rpc.transport.message.MessageFormatConstant;
-import org.dynamic.rpc.transport.message.Payload;
+import org.dynamic.rpc.transport.message.request.DynamicRPCRequest;
+import org.dynamic.rpc.transport.message.request.Payload;
+import org.dynamic.rpc.transport.message.response.DynamicRPCResponse;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 
 /**
  * @author: DynamicYang
- * @create: 2024-02-17
+ * @create: 2024-02-19
  * @Description:
  */
 @Slf4j
-public class DynamicRPCMessageDecoder extends LengthFieldBasedFrameDecoder {
+public class DynamicRPCResponseDecoder extends LengthFieldBasedFrameDecoder {
 
-    public DynamicRPCMessageDecoder() {
+    public DynamicRPCResponseDecoder() {
         //找到当前报文的总长度，截取报文，截取出的报文进行解析
         super(  //最大桢长度，超过就会直接丢弃
                 MessageFormatConstant.MAX_FRAME_LENGTH,
@@ -34,7 +39,6 @@ public class DynamicRPCMessageDecoder extends LengthFieldBasedFrameDecoder {
                 0
         );
     }
-
     @Override
     protected Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
         Object msg = super.decode(ctx, in);
@@ -66,42 +70,37 @@ public class DynamicRPCMessageDecoder extends LengthFieldBasedFrameDecoder {
         byte compressType = byteBuf.readByte();
         //6、解析序列化类型
         byte serializationType = byteBuf.readByte();
-        //7、解析请求类型 todo 判断是为心跳检测
+        //7、解析请求类型  判断是否为心跳检测
         byte requestType = byteBuf.readByte();
         //8、解析请求id
         long requestId = byteBuf.readLong();
 
-        DynamicRPCRequest dynamicRPCRequest = new DynamicRPCRequest();
-        dynamicRPCRequest.setCompressType(compressType);
-        dynamicRPCRequest.setSerializationType(serializationType);
-        dynamicRPCRequest.setRequestType(requestType);
+        DynamicRPCResponse dynamicRPCResponse = new DynamicRPCResponse();
+        dynamicRPCResponse.setCompressType(compressType);
+        dynamicRPCResponse.setSerializationType(serializationType);
+        dynamicRPCResponse.setRequestType(requestType);
+        dynamicRPCResponse.setRequestId(requestId);
 
 
-        //todo 心跳检测请求没有负载
-        if (requestType == MessageFormatConstant.REQUEST_TYPE_HEARTBEAT){
-            return dynamicRPCRequest;
+        // 心跳检测请求没有负载
+        if (requestType == RequestType.HEART_BEAT.getId()) {
+            return dynamicRPCResponse;
         }
         //9、解析负载
         int payloadLength = fullLength - headerLength;
-        byte[] payload = new byte[payloadLength];
-        byteBuf.readBytes(payload);
+        byte[] bytes = new byte[payloadLength];
+        byteBuf.readBytes(bytes);
 
-        //解压缩 TODO
+        //解压缩
+        Compressor compressor = CompressorFactory.getCompressorWrapper(compressType).getCompressor();
+        bytes = compressor.decompress(bytes);
 
 
-        //反序列化 TODO
-
-
-        try(ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(payload);
-            ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream)
-        ) {
-            Payload requestPayload = (Payload) objectInputStream.readObject();
-            dynamicRPCRequest.setPayload(requestPayload);
-        } catch (IOException | ClassNotFoundException e) {
-            log.error("请求【{}】反序列化时发生异常",requestId,e);
-            throw new RuntimeException(e);
-        }
-
-        return dynamicRPCRequest;
+        //反序列化
+        Serializer serializer = SerializerFactory.getSerializerWrapper(dynamicRPCResponse.getSerializationType()).getSerializer();
+        Object body = serializer.deserialize(bytes, Object.class);
+        dynamicRPCResponse.setBody(body);
+        return dynamicRPCResponse;
     }
+
 }

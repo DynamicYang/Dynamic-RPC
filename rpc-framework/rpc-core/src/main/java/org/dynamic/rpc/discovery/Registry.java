@@ -3,6 +3,7 @@ package org.dynamic.rpc.discovery;
 import org.dynamic.rpc.ServiceConfig;
 
 import java.net.InetSocketAddress;
+import java.util.List;
 
 /**
  * @author: DynamicYang
@@ -30,11 +31,11 @@ public interface Registry {
 
     /**
      * @Author DynamicYang
-     * @Description: 从注册中心寻找一个可用的服务
+     * @Description: 从注册中心拉取服务列表
      * @Date 2023/9/15
      * @Param
      * @return java.net.InetSocketAddress
      **/
 
-    InetSocketAddress lookup(String serviceName);
+    List<InetSocketAddress> lookup(String serviceName);
 }

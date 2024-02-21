@@ -1,15 +1,18 @@
 package org.dynamic.rpc.proxy.handler;
 
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import lombok.extern.slf4j.Slf4j;
 import org.dynamic.rpc.DynamicBootstrap;
+import org.dynamic.rpc.IDGenerator;
 import org.dynamic.rpc.NettyBootstrapInitializer;
+import org.dynamic.rpc.compress.CompressorFactory;
 import org.dynamic.rpc.discovery.Registry;
+import org.dynamic.rpc.enumration.RequestType;
 import org.dynamic.rpc.exception.NetworkException;
-import org.dynamic.rpc.transport.message.DynamicRPCRequest;
-import org.dynamic.rpc.transport.message.Payload;
+import org.dynamic.rpc.serialization.SerializerFactory;
+import org.dynamic.rpc.transport.message.request.DynamicRPCRequest;
+import org.dynamic.rpc.transport.message.request.Payload;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -46,7 +49,7 @@ public class ConsumerInvocationHandler implements InvocationHandler {
         //todo 实现服务调用的负载均衡
 
 
-        InetSocketAddress address = registry.lookup(serviceInterface.getName());
+        InetSocketAddress address = DynamicBootstrap.LOAD_BALANCER.select(serviceInterface.getName());
 
 
         if (log.isDebugEnabled()){
@@ -72,11 +75,11 @@ public class ConsumerInvocationHandler implements InvocationHandler {
 
 
         DynamicRPCRequest rpcRequest = DynamicRPCRequest.builder()
-                .requestId(1L)
-                .compressType((byte) 1)
-                .requestType((byte) 1)
-                .serializationType((byte) 1)
-                .payload(payload).build();
+                        .requestId(DynamicBootstrap.ID_GENERATOR.getId())
+                        .compressType(CompressorFactory.getCompressorWrapper(DynamicBootstrap.COMPRESS_TYPE).getCode())
+                        .requestType(RequestType.REQUEST.getId())
+                        .serializationType(SerializerFactory.getSerializerWrapper(DynamicBootstrap.SERIALIZE_TYPE).getCode())
+                        .payload(payload).build();
 /*
             *info 同步方案
             *
