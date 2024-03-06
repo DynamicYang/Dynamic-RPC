@@ -8,20 +8,26 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import org.dynamic.rpc.annotation.RpcService;
 import org.dynamic.rpc.channel.handler.inbound.DynamicRPCRequestDecoder;
 import org.dynamic.rpc.channel.handler.inbound.DynamicRPCResponseEncoder;
 import org.dynamic.rpc.channel.handler.inbound.MethodCallHandler;
+import org.dynamic.rpc.core.HeartbeatDetector;
 import org.dynamic.rpc.discovery.Registry;
 import org.dynamic.rpc.loadbalancer.LoadBalancer;
 import org.dynamic.rpc.loadbalancer.impl.RoundRobinLoadBalancer;
+import org.dynamic.rpc.transport.message.request.DynamicRPCRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
-import java.util.HashMap;
-import java.util.Map;
+import java.net.URL;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * @author: DynamicYang
@@ -35,7 +41,12 @@ public class DynamicBootstrap {
 
     public static  LoadBalancer LOAD_BALANCER;
 
+    private Configuration configuration;
+
+
     public static int PORT = 8088;
+
+
     public static final IDGenerator ID_GENERATOR = new IDGenerator(1,2);
 
     private RegistryConfig registryConfig;
@@ -51,15 +62,23 @@ public class DynamicBootstrap {
     //定义全局的对外挂起的completableFuture,key为标识
     public static final Map<Long, CompletableFuture<Object>> PENDING_REQUEST = new ConcurrentHashMap<>(128);
 
+    public static final TreeMap<Long,Channel> RESPONSE_TIME_CHANNEL_CACHE = new TreeMap<>();
+
     public static String SERIALIZE_TYPE = "JDK";
 
     public static String  COMPRESS_TYPE = "gzip";
 
+    public static  ThreadLocal<DynamicRPCRequest> RPC_REQUEST = new ThreadLocal<>();
 
 
 
 
-    private DynamicBootstrap(){}
+
+
+    private DynamicBootstrap(){
+
+        configuration = new Configuration();
+    }
 
     public static DynamicBootstrap getInstance(){
         return instance;
@@ -96,9 +115,19 @@ public class DynamicBootstrap {
         registryCenter.register(serviceConfig);
         return this;
     }
+    public DynamicBootstrap publish(List<ServiceConfig<?>> serviceConfigs){
+        for (ServiceConfig<?> serviceConfig : serviceConfigs) {
+            publish(serviceConfig);
+        }
+        return this;
+    }
 
-    public void reference(ReferenceConfig<?> referenceConfig){
+    public DynamicBootstrap reference(ReferenceConfig<?> referenceConfig){
+       //开启对服务的心跳检测
+        HeartbeatDetector.detectHeartbeat(referenceConfig.getServiceInterface().getName());
       referenceConfig.setRegistryConfig(this.registryConfig);
+
+      return this;
 
     }
 
@@ -166,4 +195,93 @@ public class DynamicBootstrap {
         }
         return this;
     }
+
+    public DynamicBootstrap scan(String packageName) {
+        List<String> classNames = getAllClassName(packageName);
+        List< Class<?>> classes = classNames.stream().map(className -> {
+            try {
+                return Class.forName(className);
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        }).filter(clazz -> {
+            if (clazz.isAnnotationPresent(RpcService.class)) {
+                return true;
+            }
+            return false;
+        }).collect(Collectors.toList());
+
+        for(Class<?> clazz:classes) {
+            Class<?>[]  interfaceClass = clazz.getInterfaces();
+            Object instance = null;
+            try {
+                instance = clazz.getConstructor().newInstance();
+            } catch (InstantiationException e) {
+                throw new RuntimeException(e);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            } catch (InvocationTargetException e) {
+                throw new RuntimeException(e);
+            } catch (NoSuchMethodException e) {
+                throw new RuntimeException(e);
+            }
+
+            for(Class<?> anInterfaceClass:interfaceClass){
+              ServiceConfig<?> serviceConfig = new ServiceConfig();
+              serviceConfig.setServiceInterface(anInterfaceClass);
+              serviceConfig.setRef(instance);
+
+              if(log.isDebugEnabled()){
+                  log.debug("扫描到服务：{}",anInterfaceClass.getName());
+              }
+              publish(serviceConfig);
+            }
+
+        }
+        return this;
+    }
+
+    private List<String> getAllClassName(String packageName) {
+        String basePath = packageName.replace("\\.", "/");
+        URL resource = ClassLoader.getSystemClassLoader().getResource(basePath);
+        if(resource == null){
+            throw new RuntimeException("未找到对应的包名");
+        }
+       String path = resource.getPath();
+        List<String> classNames = new ArrayList<>();
+        classNames = recursionFile(path,classNames,basePath);
+        return classNames;
+    }
+
+    private List<String> recursionFile(String path,List<String> classNames,String basePath){
+        File file = new File(path);
+
+        if(file.isDirectory()){
+            File[] files = file.listFiles();
+            if (files == null || files.length == 0){
+                return classNames;
+            }
+            for(File f:files){
+                if(f.isDirectory()){
+                    recursionFile(f.getPath(),classNames,basePath);
+                }else{
+                    String fileName = f.getName();
+                    String absolutePath = f.getAbsolutePath();
+
+                    if(fileName.endsWith(".class")){
+                        String className = getClassNameByAbsolutePath(absolutePath,basePath);
+                        classNames.add(className);
+                    }
+                }
+            }
+        }
+        return classNames;
+    }
+    private String getClassNameByAbsolutePath(String absolutePath,String basePath) {
+        String classPath =  absolutePath.substring(absolutePath.indexOf(basePath.replaceAll("/","\\\\"))).replaceAll("\\\\",".");
+        String className = classPath.substring(0,classPath.indexOf(".class"));
+        return className;
+
+    }
+
 }

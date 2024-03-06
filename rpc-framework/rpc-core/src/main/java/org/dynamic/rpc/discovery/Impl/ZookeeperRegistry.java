@@ -7,6 +7,7 @@ import org.dynamic.rpc.discovery.AbstractRegistry;
 import org.dynamic.rpc.exception.DiscoveryException;
 import org.dynamic.rpc.utils.NetUtils;
 import org.dynamic.rpc.utils.ZookeeperUtils;
+import org.dynamic.rpc.watcher.UpAndDownWatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,7 +64,7 @@ public class ZookeeperRegistry extends AbstractRegistry {
         //找到服务对应的结点
         String serviceNodePath = Constant.BASE_PROVIDER_NODE + "/" + serviceName;
         //从zk中获取他的子节点
-        List<String> children = ZookeeperUtils.getChildren(zooKeeper, serviceNodePath, null);
+        List<String> children = ZookeeperUtils.getChildren(zooKeeper, serviceNodePath, new UpAndDownWatcher());
         List<InetSocketAddress> collect = children.stream().map(ip -> {
             String[] ipAndPort = ip.split(":");
             return new InetSocketAddress(ipAndPort[0], Integer.parseInt(ipAndPort[1]));

@@ -6,6 +6,9 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.CharsetUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.dynamic.rpc.DynamicBootstrap;
+import org.dynamic.rpc.enumration.RequestType;
+import org.dynamic.rpc.transport.message.MessageFormatConstant;
+import org.dynamic.rpc.transport.message.response.DynamicRPCResponse;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -15,15 +18,25 @@ import java.util.concurrent.CompletableFuture;
  * @Description:
  */
 @Slf4j
-public class MySimpleChannelInboundHandler extends SimpleChannelInboundHandler<ByteBuf> {
+public class MySimpleChannelInboundHandler extends SimpleChannelInboundHandler<DynamicRPCResponse> {
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
-        log.info("收到消息{}",msg.toString(CharsetUtil.UTF_8));
+    protected void channelRead0(ChannelHandlerContext ctx, DynamicRPCResponse response) throws Exception {
 
-        String result = msg.toString(CharsetUtil.UTF_8);
-        // 从全局挂起的请求当中寻找与之匹配的待处理的completeFuture
-        CompletableFuture<Object> completableFuture = DynamicBootstrap.PENDING_REQUEST.get(1L);
-        completableFuture.complete(result);
+//            if(response.getRequestType() == RequestType.HEART_BEAT.getId()) {
+//                Object returnValue = new Object();
+//            }
+
+            Object returnValue = response.getBody();
+
+            returnValue = returnValue == null ? new Object(): returnValue;
+
+            CompletableFuture<Object> completableFuture = DynamicBootstrap.PENDING_REQUEST.get(response.getRequestId());
+
+            completableFuture.complete(returnValue);
+
+            if (log.isDebugEnabled()){
+                log.debug("返回结果：{}", returnValue);
+            }
     }
 }

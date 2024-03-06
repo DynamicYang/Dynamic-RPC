@@ -27,11 +27,15 @@ public class MethodCallHandler extends SimpleChannelInboundHandler<DynamicRPCReq
 
         //1、获取负载内容
         Payload payload = msg.getPayload();
+        Object o = null;
         //2、根据负载内容进行方法调用
-        Object o = callTargetMethod(payload);
-        if(log.isDebugEnabled())    {
-            log.debug("请求【{}】已经在服务端完成方法调用，",msg.getRequestId());
+        if(!(msg.getRequestType() == RequestType.HEART_BEAT.getId())){
+             o = callTargetMethod(payload);
+            if(log.isDebugEnabled())    {
+                log.debug("请求【{}】已经在服务端完成方法调用，",msg.getRequestId());
+            }
         }
+
         //3、封装响应
         DynamicRPCResponse response = new DynamicRPCResponse();
 
@@ -43,7 +47,7 @@ public class MethodCallHandler extends SimpleChannelInboundHandler<DynamicRPCReq
         response.setBody(o);
         //4、写出响应
 
-        ctx.channel().writeAndFlush(o);
+        ctx.channel().writeAndFlush(response);
 
 
     }

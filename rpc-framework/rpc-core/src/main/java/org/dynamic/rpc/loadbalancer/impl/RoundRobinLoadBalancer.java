@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.dynamic.rpc.DynamicBootstrap;
 import org.dynamic.rpc.discovery.Registry;
 import org.dynamic.rpc.exception.LoadBalancerException;
+import org.dynamic.rpc.loadbalancer.AbstractLoadBalancer;
 import org.dynamic.rpc.loadbalancer.LoadBalancer;
 import org.dynamic.rpc.loadbalancer.Selector;
 
@@ -20,40 +21,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 
 @Slf4j
-public class RoundRobinLoadBalancer implements LoadBalancer {
-
-    private Registry registry;
-
-    private Selector selector;
-
-    private Map<String,Selector> cache = new ConcurrentHashMap<>(8);
-
-    public RoundRobinLoadBalancer(){
-        this.registry = DynamicBootstrap.getInstance().getRegistry();
-
-    }
-
+public class RoundRobinLoadBalancer extends AbstractLoadBalancer {
 
     @Override
-    public InetSocketAddress select(String serviceName) {
-        //优先从缓存中获取一个选择器
-        Selector selector = cache.get(serviceName);
-
-        if (selector == null) {
-
-            //对于这个负载均衡器内部应该维护一个服务列表作为缓存
-            List<InetSocketAddress> serviceList = registry.lookup(serviceName);
-
-
-            //提供一些算法负责选取适合的结点
-            selector = new RoundRobinSelector(serviceList);
-
-            //将选择器放入缓存中
-            cache.put(serviceName,selector);
-
-        }
-        return selector.getNext();
-
+    protected Selector getSelector(List<InetSocketAddress> serviceList) {
+        return new RoundRobinSelector(serviceList);
     }
 
     private static class RoundRobinSelector implements Selector{
@@ -80,9 +52,6 @@ public class RoundRobinLoadBalancer implements LoadBalancer {
             return address;
         }
 
-        @Override
-        public void reBalance(List<InetSocketAddress> serviceList) {
 
-        }
     }
 }

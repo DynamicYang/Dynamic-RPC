@@ -6,26 +6,26 @@ package org.dynamic.rpc;
  * @Description:
  */
 public class ServiceConfig<T> {
-    private Class<T> serviceInterface;
-    private T service;
+    private Class<?> serviceInterface;
+    private Object service;
     public void setInterface(Class<T> serviceInterface) {
         this.serviceInterface = serviceInterface;
     }
 
-    public void setRef(T service) {
+    public void setRef(Object service) {
         this.service = service;
 
     }
 
-    public Class<T> getServiceInterface() {
+    public Class<?> getServiceInterface() {
         return serviceInterface;
     }
 
-    public void setServiceInterface(Class<T> serviceInterface) {
+    public void setServiceInterface(Class<?> serviceInterface) {
         this.serviceInterface = serviceInterface;
     }
 
-    public T getService() {
+    public Object getService() {
         return service;
     }
 

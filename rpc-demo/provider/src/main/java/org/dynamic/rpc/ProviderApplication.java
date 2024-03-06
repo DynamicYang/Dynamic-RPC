@@ -20,7 +20,8 @@ public class ProviderApplication {
                 .registry(new RegistryConfig("zookeeper://172.29.207.114"))
 //                .registry(new RegistryConfig())
                 .protocol(new ProtocolConfig("jdk"))
-                .publish(service)
+//                .publish(service)
+                .scan("org.dynamic.rpc")
                 .start();
 
 

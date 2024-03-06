@@ -41,19 +41,21 @@ public class DynamicRPCResponseEncoder extends MessageToByteEncoder<DynamicRPCRe
         byteBuf.writeInt(response.getCode());
         byteBuf.writeByte(response.getCompressType());
         byteBuf.writeByte(response.getSerializationType());
+        byteBuf.writeLong(response.getTimeStamp());
 
 
+        byte[] body = null;
+        if(response.getBody() != null ){
+            //序列化
+            Serializer serializer = SerializerFactory.getSerializerWrapper(response.getSerializationType()).getSerializer();
+            // 写入请求体
+            body = serializer.serialize(response.getBody());
 
+            // 压缩
+            Compressor compressor = CompressorFactory.getCompressorWrapper(response.getCompressType()).getCompressor();
+            body = compressor.compress(body);
+        }
 
-
-        //序列化
-        Serializer serializer = SerializerFactory.getSerializerWrapper(response.getSerializationType()).getSerializer();
-        // 写入请求体
-        byte[] body = serializer.serialize(response.getBody());
-
-        // 压缩
-        Compressor compressor = CompressorFactory.getCompressorWrapper(response.getCompressType()).getCompressor();
-         body = compressor.compress(body);
 
         if (body != null){
             byteBuf.writeBytes(body);

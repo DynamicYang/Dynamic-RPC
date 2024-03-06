@@ -48,18 +48,26 @@ public class DynamicRPCRequestEncoder extends MessageToByteEncoder<DynamicRPCReq
         out.writeByte(msg.getRequestType());
         out.writeByte(msg.getCompressType());
         out.writeByte(msg.getSerializationType());
+        out.writeLong(msg.getRequestId());
+        out.writeLong(msg.getTimeStamp());
 
-        //序列化
-        Serializer serializer  = SerializerFactory.getSerializerWrapper(DynamicBootstrap.SERIALIZE_TYPE).getSerializer();
-        byte[] body = serializer.serialize(msg.getPayload());
 
-        // 压缩
-        Compressor compressor = CompressorFactory.getCompressorWrapper(msg.getCompressType()).getCompressor();
-        body = compressor.compress(body);
+
+        byte[] body = null;
+        if(body != null && body.length != 0) {
+            //序列化
+            Serializer serializer  = SerializerFactory.getSerializerWrapper(DynamicBootstrap.SERIALIZE_TYPE).getSerializer();
+            body = serializer.serialize(msg.getPayload());
+            // 压缩
+            Compressor compressor = CompressorFactory.getCompressorWrapper(msg.getCompressType()).getCompressor();
+            body = compressor.compress(body);
+        }
 
         // 写入请求体
         if (body != null){
             out.writeBytes(body);
+        }else{
+            out.writeBytes(new byte[0]);
         }
         int bodyLength = body == null ? 0 : body.length;
 

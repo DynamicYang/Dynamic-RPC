@@ -20,6 +20,8 @@ public class DynamicRPCResponse {
 
     private byte requestType;
 
+    private long timeStamp;
+
     public long getRequestId() {
         return requestId;
     }
@@ -68,6 +70,12 @@ public class DynamicRPCResponse {
         this.serializationType = serializationType;
     }
 
+    public long getTimeStamp() {
+        return timeStamp;
+    }
+    public void setTimeStamp(long timeStamp) {
+        this.timeStamp = timeStamp;
+    }
     public DynamicRPCResponse(long requestId, int code, Object body, byte compressType, byte serializationType, byte requestType) {
         this.requestId = requestId;
         this.code = code;

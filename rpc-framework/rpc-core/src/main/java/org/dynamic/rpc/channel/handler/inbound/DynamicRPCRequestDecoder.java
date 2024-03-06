@@ -12,10 +12,7 @@ import org.dynamic.rpc.serialization.SerializerFactory;
 import org.dynamic.rpc.transport.message.request.DynamicRPCRequest;
 import org.dynamic.rpc.transport.message.MessageFormatConstant;
 import org.dynamic.rpc.transport.message.request.Payload;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
+import java.util.Random;
 
 /**
  * @author: DynamicYang
@@ -41,6 +38,9 @@ public class DynamicRPCRequestDecoder extends LengthFieldBasedFrameDecoder {
 
     @Override
     protected Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
+
+        Thread.sleep(new Random().nextInt(50));
+
         Object msg = super.decode(ctx, in);
         if (msg instanceof ByteBuf byteBuf){
             return decodeFrame(byteBuf);
@@ -75,10 +75,15 @@ public class DynamicRPCRequestDecoder extends LengthFieldBasedFrameDecoder {
         //8、解析请求id
         long requestId = byteBuf.readLong();
 
+        //9、解析时间戳
+        long timeStamp = byteBuf.readLong();
+
         DynamicRPCRequest dynamicRPCRequest = new DynamicRPCRequest();
         dynamicRPCRequest.setCompressType(compressType);
         dynamicRPCRequest.setSerializationType(serializationType);
         dynamicRPCRequest.setRequestType(requestType);
+        dynamicRPCRequest.setRequestId(requestId);
+        dynamicRPCRequest.setTimeStamp(timeStamp);
 
 
         // 心跳检测请求没有负载
@@ -89,13 +94,16 @@ public class DynamicRPCRequestDecoder extends LengthFieldBasedFrameDecoder {
         int payloadLength = fullLength - headerLength;
         byte[] payload = new byte[payloadLength];
         byteBuf.readBytes(payload);
+        Payload requestPayload = null;
+        if(payload != null || payload.length != 0){
+            //解压缩
+            Compressor compressor = CompressorFactory.getCompressorWrapper(compressType).getCompressor();
+            payload = compressor.decompress(payload);
+            //反序列化
+            Serializer serializer = SerializerFactory.getSerializerWrapper(serializationType).getSerializer();
+            requestPayload = serializer.deserialize(payload, Payload.class);
+        }
 
-        //解压缩
-        Compressor compressor = CompressorFactory.getCompressorWrapper(compressType).getCompressor();
-        payload = compressor.decompress(payload);
-        //反序列化
-        Serializer serializer = SerializerFactory.getSerializerWrapper(serializationType).getSerializer();
-        Payload requestPayload = serializer.deserialize(payload, Payload.class);
 
         dynamicRPCRequest.setPayload(requestPayload);
         return dynamicRPCRequest;

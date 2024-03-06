@@ -18,6 +18,4 @@ public interface Selector {
     InetSocketAddress getNext();
 
 
-    // todo 服务动态上下线需要进行reBalance
-    void reBalance(List<InetSocketAddress> serviceList);
 }

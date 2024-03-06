@@ -74,12 +74,16 @@ public class DynamicRPCResponseDecoder extends LengthFieldBasedFrameDecoder {
         byte requestType = byteBuf.readByte();
         //8、解析请求id
         long requestId = byteBuf.readLong();
+        //9、解析时间戳
+        long timeStamp = byteBuf.readLong();
+
 
         DynamicRPCResponse dynamicRPCResponse = new DynamicRPCResponse();
         dynamicRPCResponse.setCompressType(compressType);
         dynamicRPCResponse.setSerializationType(serializationType);
         dynamicRPCResponse.setRequestType(requestType);
         dynamicRPCResponse.setRequestId(requestId);
+        dynamicRPCResponse.setTimeStamp(timeStamp);
 
 
         // 心跳检测请求没有负载

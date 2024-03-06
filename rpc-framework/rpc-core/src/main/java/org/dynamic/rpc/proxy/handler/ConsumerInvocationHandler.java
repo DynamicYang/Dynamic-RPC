@@ -43,7 +43,31 @@ public class ConsumerInvocationHandler implements InvocationHandler {
         log.info("method: " + method.getName());
         log.info("args" + args);
 
+        /*
+         * ---------------------报文封装--------------------------
+         *
+         *
+         */
 
+        Payload payload = Payload.builder()
+                .interfaceName(serviceInterface.getName())
+                .methodName(method.getName())
+                .parameterTypes(method.getParameterTypes())
+                .parametersValues(args)
+                .returnType(method.getReturnType())
+                .build();
+
+
+        DynamicRPCRequest rpcRequest = DynamicRPCRequest.builder()
+                .requestId(DynamicBootstrap.ID_GENERATOR.getId())
+                .compressType(CompressorFactory.getCompressorWrapper(DynamicBootstrap.COMPRESS_TYPE).getCode())
+                .requestType(RequestType.REQUEST.getId())
+                .serializationType(SerializerFactory.getSerializerWrapper(DynamicBootstrap.SERIALIZE_TYPE).getCode())
+                .timeStamp(System.currentTimeMillis())
+                .payload(payload).build();
+
+        //记得释放
+        DynamicBootstrap.RPC_REQUEST.set(rpcRequest);
 
         //todo q:每次调用远程服务都要去远程拉取服务列表吗？
         //todo 实现服务调用的负载均衡
@@ -59,27 +83,7 @@ public class ConsumerInvocationHandler implements InvocationHandler {
         Channel channel = getAvailableChannel(address);
 
 
-        /*
-         * ---------------------报文封装--------------------------
-         *
-         *
-         */
 
-        Payload payload = Payload.builder()
-                        .interfaceName(serviceInterface.getName())
-                        .methodName(method.getName())
-                        .parameterTypes(method.getParameterTypes())
-                        .parametersValues(args)
-                        .returnType(method.getReturnType())
-                        .build();
-
-
-        DynamicRPCRequest rpcRequest = DynamicRPCRequest.builder()
-                        .requestId(DynamicBootstrap.ID_GENERATOR.getId())
-                        .compressType(CompressorFactory.getCompressorWrapper(DynamicBootstrap.COMPRESS_TYPE).getCode())
-                        .requestType(RequestType.REQUEST.getId())
-                        .serializationType(SerializerFactory.getSerializerWrapper(DynamicBootstrap.SERIALIZE_TYPE).getCode())
-                        .payload(payload).build();
 /*
             *info 同步方案
             *
@@ -100,7 +104,7 @@ public class ConsumerInvocationHandler implements InvocationHandler {
 
         CompletableFuture<Object> completableFuture = new CompletableFuture<>();
         // *info 使用全局的completableFuture
-        DynamicBootstrap.PENDING_REQUEST.put(1L,completableFuture);
+        DynamicBootstrap.PENDING_REQUEST.put(rpcRequest.getRequestId(),completableFuture);
 // *info promise
         channel.writeAndFlush(rpcRequest).addListener((ChannelFutureListener) promise->{
 
@@ -126,6 +130,7 @@ public class ConsumerInvocationHandler implements InvocationHandler {
 //            throw new RuntimeException(e);
 //        }
         Object result = completableFuture.get(10,TimeUnit.SECONDS);
+        DynamicBootstrap.RPC_REQUEST.remove();
         return result;
     }
 

@@ -27,6 +27,8 @@ public class DynamicRPCRequest  {
     private byte serializationType;
 
     private Payload payload;
+
+    private long timeStamp;
 //
 //    public long getRequestId() {
 //        return requestId;
