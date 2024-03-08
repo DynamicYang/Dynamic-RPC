@@ -1,0 +1,2 @@
+org.dynamic.rpc.serialization.Impl.HessianSerializer
+org.dynamic.rpc.serialization.Impl.JDKSerializer

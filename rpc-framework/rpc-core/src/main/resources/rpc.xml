@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE configuration SYSTEM "https://dynamic.top/rpc-1-config.dtd">
+<configuration>
+    <port>9898</port>
+    <appName>rpc-default-application</appName>
+    <serializer class="org.dynamic.rpc.serializer.JdkSerializer"></serializer>
+    <serializeType type="JDK"/>
+    <compressor class="org.dynamic.rpc.compressor.GzipCompressor"/>
+    <compressorType type="gzip"/>
+    <registryCenter url="zookeeper://127.0.0.1:2181"></registryCenter>
+    <loadBalancer class="org.dynamic.rpc.loadbalancer.impl.ConsistencyHashLoadBalancer"/>
+    <loadBalancerType type="ConsistentHash"></loadBalancerType>
+    <IDGenerator class="org.dynamic.rpc.support.IDGenerator" dataCenterId="1" machineId="2"></IDGenerator>
+    <protocolType type="JDK"></protocolType>
+
+</configuration>

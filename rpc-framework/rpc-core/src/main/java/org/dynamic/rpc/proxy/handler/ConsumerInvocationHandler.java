@@ -6,10 +6,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.dynamic.rpc.DynamicBootstrap;
 import org.dynamic.rpc.IDGenerator;
 import org.dynamic.rpc.NettyBootstrapInitializer;
+import org.dynamic.rpc.annotation.TryTimes;
 import org.dynamic.rpc.compress.CompressorFactory;
+import org.dynamic.rpc.config.Configuration;
 import org.dynamic.rpc.discovery.Registry;
 import org.dynamic.rpc.enumration.RequestType;
 import org.dynamic.rpc.exception.NetworkException;
+import org.dynamic.rpc.protection.CircuitBreaker;
 import org.dynamic.rpc.serialization.SerializerFactory;
 import org.dynamic.rpc.transport.message.request.DynamicRPCRequest;
 import org.dynamic.rpc.transport.message.request.Payload;
@@ -17,6 +20,10 @@ import org.dynamic.rpc.transport.message.request.Payload;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -30,6 +37,10 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public class ConsumerInvocationHandler implements InvocationHandler {
 
+
+    //从接口中获取判断是否需要重试
+
+
     private Registry registry;
     private Class<?> serviceInterface;
 
@@ -40,47 +51,83 @@ public class ConsumerInvocationHandler implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws ExecutionException, InterruptedException, TimeoutException {
-        log.info("method: " + method.getName());
-        log.info("args" + args);
-
-        /*
-         * ---------------------报文封装--------------------------
-         *
-         *
-         */
-
-        Payload payload = Payload.builder()
-                .interfaceName(serviceInterface.getName())
-                .methodName(method.getName())
-                .parameterTypes(method.getParameterTypes())
-                .parametersValues(args)
-                .returnType(method.getReturnType())
-                .build();
 
 
-        DynamicRPCRequest rpcRequest = DynamicRPCRequest.builder()
-                .requestId(DynamicBootstrap.ID_GENERATOR.getId())
-                .compressType(CompressorFactory.getCompressorWrapper(DynamicBootstrap.COMPRESS_TYPE).getCode())
-                .requestType(RequestType.REQUEST.getId())
-                .serializationType(SerializerFactory.getSerializerWrapper(DynamicBootstrap.SERIALIZE_TYPE).getCode())
-                .timeStamp(System.currentTimeMillis())
-                .payload(payload).build();
+        TryTimes tryTimesAnnotation = method.getAnnotation(TryTimes.class);
 
-        //记得释放
-        DynamicBootstrap.RPC_REQUEST.set(rpcRequest);
-
-        //todo q:每次调用远程服务都要去远程拉取服务列表吗？
-        //todo 实现服务调用的负载均衡
-
-
-        InetSocketAddress address = DynamicBootstrap.LOAD_BALANCER.select(serviceInterface.getName());
-
-
-        if (log.isDebugEnabled()){
-            log.debug("服务调用方发现了，服务【{}】可用主机【{}】",serviceInterface.getName(),address.getAddress());
+        int tryTimes = 0;
+        int intervalTime = 0;
+        if (tryTimesAnnotation != null) {
+            tryTimes = tryTimesAnnotation.tryTimes();
+            intervalTime = tryTimesAnnotation.intervalTime();
         }
 
-        Channel channel = getAvailableChannel(address);
+        while (true) {
+
+            /*
+             * ---------------------报文封装--------------------------
+             *
+             *
+             */
+
+
+
+
+            Payload payload = Payload.builder()
+                    .interfaceName(serviceInterface.getName())
+                    .methodName(method.getName())
+                    .parameterTypes(method.getParameterTypes())
+                    .parametersValues(args)
+                    .returnType(method.getReturnType())
+                    .build();
+            Configuration configuration = DynamicBootstrap.getInstance().getConfiguration();
+
+            DynamicRPCRequest rpcRequest = DynamicRPCRequest.builder()
+                    .requestId(configuration.getIdGenerator().getId())
+                    .compressType(CompressorFactory.getCompressorWrapper(configuration.getCompressorType()).getCode())
+                    .requestType(RequestType.REQUEST.getId())
+                    .serializationType(SerializerFactory.getSerializerWrapper(configuration.getSerializerType()).getCode())
+                    .timeStamp(System.currentTimeMillis())
+                    .payload(payload).build();
+
+            //记得释放
+            DynamicBootstrap.RPC_REQUEST.set(rpcRequest);
+
+
+
+
+            InetSocketAddress address = configuration.getLoadBalancer().select(serviceInterface.getName());
+
+
+            if (log.isDebugEnabled()) {
+                log.debug("服务调用方发现了，服务【{}】可用主机【{}】", serviceInterface.getName(), address.getAddress());
+            }
+
+            Map<SocketAddress, CircuitBreaker> everyHostCircuitBreaker = configuration.getEveryIpCircuitBreaker();
+
+            CircuitBreaker circuitBreaker = everyHostCircuitBreaker.get(address);
+
+            if(circuitBreaker == null){
+                circuitBreaker = new CircuitBreaker(10,0.5F);
+                everyHostCircuitBreaker.put(address, circuitBreaker);
+            }
+
+            try {
+                if(rpcRequest.getRequestType() == RequestType.HEART_BEAT.getId() && circuitBreaker.isBreak()){
+                    Timer timer = new Timer();
+                    timer.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                           configuration.getEveryIpCircuitBreaker().get(address).reset();
+                        }
+                    }, 5000);
+
+                    throw new RuntimeException("服务熔断了,请稍后再试");
+                }
+            Channel channel = getAvailableChannel(address);
+                if (log.isDebugEnabled()){
+                    log.debug("获取到与【{}】的通道，准备发送数据", address.getAddress());
+                }
 
 
 
@@ -99,27 +146,24 @@ public class ConsumerInvocationHandler implements InvocationHandler {
             }
 */
 
-        // *info 异步策略
+            // *info 异步策略
 
 
-        CompletableFuture<Object> completableFuture = new CompletableFuture<>();
-        // *info 使用全局的completableFuture
-        DynamicBootstrap.PENDING_REQUEST.put(rpcRequest.getRequestId(),completableFuture);
+            CompletableFuture<Object> completableFuture = new CompletableFuture<>();
+            // *info 使用全局的completableFuture
+            DynamicBootstrap.PENDING_REQUEST.put(rpcRequest.getRequestId(), completableFuture);
 // *info promise
-        channel.writeAndFlush(rpcRequest).addListener((ChannelFutureListener) promise->{
+            channel.writeAndFlush(rpcRequest).addListener((ChannelFutureListener) promise -> {
 
-            if(!promise.isSuccess()){
-                completableFuture.completeExceptionally(promise.cause());
-            }
-        });
-
-
-
+                if (!promise.isSuccess()) {
+                    completableFuture.completeExceptionally(promise.cause());
+                }
+            });
 
 
 //            Object o = completableFuture.get(3,TimeUnit.SECONDS);
-        // q: 如过没有处理这个completableFuture会阻塞点当前线程，等待complete方法的执行
-        //需要在哪里调用complete方法得到结果？，很明显是pipeline中最终handler的处理结果
+            // q: 如过没有处理这个completableFuture会阻塞点当前线程，等待complete方法的执行
+            //需要在哪里调用complete方法得到结果？，很明显是pipeline中最终handler的处理结果
 //        try {
 //
 //        } catch (InterruptedException e) {
@@ -129,9 +173,26 @@ public class ConsumerInvocationHandler implements InvocationHandler {
 //        } catch (TimeoutException e) {
 //            throw new RuntimeException(e);
 //        }
-        Object result = completableFuture.get(10,TimeUnit.SECONDS);
-        DynamicBootstrap.RPC_REQUEST.remove();
-        return result;
+            Object result = completableFuture.get(10, TimeUnit.SECONDS);
+            DynamicBootstrap.RPC_REQUEST.remove();
+            circuitBreaker.recordRequest();
+            return result;
+            }catch (Exception e){
+                tryTimes--;
+                circuitBreaker.recordErrorRequest();
+                try {
+                    Thread.sleep(intervalTime);
+                }catch (InterruptedException e1){
+                    log.error("在进行重试时发生异常",e1);
+                }
+
+                if(tryTimes <=0 ){
+                    log.error("对方法【{}】进行远程调用时，重试{}次，服务依然不可用",method.getName(),tryTimes);
+                    break;
+                }
+            }
+        }
+        throw new RuntimeException("执行远程方法" + method.getName() + "时，调用失败");
     }
 
 

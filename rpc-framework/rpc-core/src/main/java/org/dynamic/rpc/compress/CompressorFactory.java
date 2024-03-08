@@ -3,7 +3,10 @@ package org.dynamic.rpc.compress;
 import io.netty.handler.logging.LogLevel;
 import lombok.extern.slf4j.Slf4j;
 import org.dynamic.rpc.compress.Impl.GzipCompressor;
+import org.dynamic.rpc.serialization.Serializer;
+import org.dynamic.rpc.serialization.SerializerWrapper;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -39,4 +42,26 @@ public class CompressorFactory {
         return TYPE_CODE_CACHE.get(code);
 
     }
+
+    public static <T extends Compressor> void addCompressorIfAbsent( T compressor){
+        String type = compressor.getClass().getSimpleName().replace("Compressor","");
+        byte code = (byte) (COMPRESSOR_CACHE.size()+1);
+        for(String s : COMPRESSOR_CACHE.keySet()){
+            if(s.toLowerCase().equals(type.toLowerCase())){
+                log.info("已加载序列化方式：{}，无需重复加载",type);
+                return;
+            }
+        }
+
+        CompressorWrapper wrapper = new CompressorWrapper(code,type,compressor);
+        COMPRESSOR_CACHE.put(type,wrapper);
+        TYPE_CODE_CACHE.put(code,wrapper);
+    }
+
+    public static <T extends Compressor> void addCompressorIfAbsent( List<T> compressor){
+        for(T c : compressor){
+            addCompressorIfAbsent(c);
+        }
+    }
+
 }

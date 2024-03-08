@@ -12,10 +12,14 @@ import org.dynamic.rpc.annotation.RpcService;
 import org.dynamic.rpc.channel.handler.inbound.DynamicRPCRequestDecoder;
 import org.dynamic.rpc.channel.handler.inbound.DynamicRPCResponseEncoder;
 import org.dynamic.rpc.channel.handler.inbound.MethodCallHandler;
+import org.dynamic.rpc.config.Configuration;
 import org.dynamic.rpc.core.HeartbeatDetector;
 import org.dynamic.rpc.discovery.Registry;
+import org.dynamic.rpc.enumration.RequestType;
 import org.dynamic.rpc.loadbalancer.LoadBalancer;
 import org.dynamic.rpc.loadbalancer.impl.RoundRobinLoadBalancer;
+import org.dynamic.rpc.protection.CircuitBreaker;
+import org.dynamic.rpc.protection.RateLimiter;
 import org.dynamic.rpc.transport.message.request.DynamicRPCRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -86,11 +91,13 @@ public class DynamicBootstrap {
 
 
     public DynamicBootstrap application(String appName){
+        configuration.setAppName(appName);
         return this;
     }
 
     public DynamicBootstrap registry(RegistryConfig registryConfig){
 
+        configuration.setRegistryConfig(registryConfig);
 
         //使用工厂来获取注册中心
         this.registryConfig = registryConfig;
@@ -99,7 +106,14 @@ public class DynamicBootstrap {
         return this;
     }
 
+    public DynamicBootstrap loadBalancer(LoadBalancer loadBalancer){
+        configuration.setLoadBalancer(loadBalancer);
+        return this;
+    }
+
     public DynamicBootstrap protocol(ProtocolConfig protocolConfig){
+        configuration.setProtocolConfig(protocolConfig);
+
         this.protocolConfig = protocolConfig;
         if (log.isDebugEnabled()){
             log.debug("当前使用了{}的协议进行序列化", protocolConfig);
@@ -181,6 +195,7 @@ public class DynamicBootstrap {
     }
 
     public DynamicBootstrap serialize(String serializeType) {
+        configuration.setSerializerType(serializeType);
         SERIALIZE_TYPE = serializeType;
         if (log.isDebugEnabled()){
             log.debug("当前使用了{}的序列化方式", serializeType);
@@ -189,6 +204,7 @@ public class DynamicBootstrap {
     }
 
     public DynamicBootstrap compressor(String type) {
+        configuration.setCompressorType(type);
         COMPRESS_TYPE = type;
         if (log.isDebugEnabled()){
             log.debug("当前使用了{}的压缩解压方式", type);
@@ -284,4 +300,12 @@ public class DynamicBootstrap {
 
     }
 
+    public Configuration getConfiguration() {
+        return configuration;
+    }
+
+    public DynamicBootstrap group(String group){
+        configuration.setGroup(group);
+        return this;
+    }
 }

@@ -4,6 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.dynamic.rpc.serialization.Impl.JDKSerializer;
 import org.dynamic.rpc.serialization.Impl.JsonSerializer;
 
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -41,5 +43,24 @@ public class SerializerFactory {
     public static SerializerWrapper getSerializerWrapper(byte code){
         return TYPE_CODE_CACHE.get(code);
 
+    }
+
+    public static < T extends Serializer> void addSerializerIfAbsent(   T serializer){
+        String type = serializer.getClass().getSimpleName().replace("Serializer","");
+        for(String s : SERIALIZER_CACHE.keySet()){
+            if(s.toLowerCase().equals(type.toLowerCase())){
+                log.info("已加载序列化方式：{}，无需重复加载",type);
+                return;
+            }
+        }
+        byte code = (byte) (SERIALIZER_CACHE.size()+1);
+        SerializerWrapper wrapper = new SerializerWrapper(code,type,serializer);
+        SERIALIZER_CACHE.put(type,wrapper);
+        TYPE_CODE_CACHE.put(code,wrapper);
+    }
+    public static < T extends Serializer> void addSerializerIfAbsent(   List<T> serializers) {
+        for (T serializer : serializers) {
+            addSerializerIfAbsent(serializer);
+        }
     }
 }
