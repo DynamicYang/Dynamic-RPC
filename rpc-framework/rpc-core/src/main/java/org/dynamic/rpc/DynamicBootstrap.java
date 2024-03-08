@@ -8,6 +8,7 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import org.dynamic.rpc.annotation.RpcAPI;
 import org.dynamic.rpc.annotation.RpcService;
 import org.dynamic.rpc.channel.handler.inbound.DynamicRPCRequestDecoder;
 import org.dynamic.rpc.channel.handler.inbound.DynamicRPCResponseEncoder;
@@ -221,7 +222,7 @@ public class DynamicBootstrap {
                 throw new RuntimeException(e);
             }
         }).filter(clazz -> {
-            if (clazz.isAnnotationPresent(RpcService.class)) {
+            if (clazz.isAnnotationPresent(RpcAPI.class)) {
                 return true;
             }
             return false;
@@ -241,15 +242,18 @@ public class DynamicBootstrap {
             } catch (NoSuchMethodException e) {
                 throw new RuntimeException(e);
             }
+            // 获取分组信息
+            RpcAPI rpcApi = clazz.getAnnotation(RpcAPI.class);
+            String group = rpcApi.group();
 
-            for(Class<?> anInterfaceClass:interfaceClass){
-              ServiceConfig<?> serviceConfig = new ServiceConfig();
-              serviceConfig.setServiceInterface(anInterfaceClass);
-              serviceConfig.setRef(instance);
-
-              if(log.isDebugEnabled()){
-                  log.debug("扫描到服务：{}",anInterfaceClass.getName());
-              }
+            for (Class<?> anInterface : interfaceClass) {
+                ServiceConfig<?> serviceConfig = new ServiceConfig<>();
+                serviceConfig.setInterface(anInterface);
+                serviceConfig.setRef(instance);
+                serviceConfig.setGroup(group);
+                if (log.isDebugEnabled()){
+                    log.debug("---->已经通过包扫描，将服务【{}】发布.",anInterface);
+                }
               publish(serviceConfig);
             }
 

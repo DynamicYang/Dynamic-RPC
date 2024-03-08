@@ -8,8 +8,20 @@ package org.dynamic.rpc;
 public class ServiceConfig<T> {
     private Class<?> serviceInterface;
     private Object service;
-    public void setInterface(Class<T> serviceInterface) {
+
+    private String group = "default";
+    public void setInterface(Class<?> serviceInterface) {
         this.serviceInterface = serviceInterface;
+    }
+
+
+
+    public String getGroup() {
+        return group;
+    }
+
+    public void setGroup(String group) {
+        this.group = group;
     }
 
     public void setRef(Object service) {
