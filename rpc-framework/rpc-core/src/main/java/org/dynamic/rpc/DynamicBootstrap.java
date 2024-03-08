@@ -15,6 +15,7 @@ import org.dynamic.rpc.channel.handler.inbound.DynamicRPCResponseEncoder;
 import org.dynamic.rpc.channel.handler.inbound.MethodCallHandler;
 import org.dynamic.rpc.config.Configuration;
 import org.dynamic.rpc.core.HeartbeatDetector;
+import org.dynamic.rpc.core.ShutDownHook;
 import org.dynamic.rpc.discovery.Registry;
 import org.dynamic.rpc.enumration.RequestType;
 import org.dynamic.rpc.loadbalancer.LoadBalancer;
@@ -147,6 +148,9 @@ public class DynamicBootstrap {
     }
 
     public void start(){
+        // 注册关闭应用程序的钩子函数
+        Runtime.getRuntime().addShutdownHook(new ShutDownHook());
+
         //创建bossGroup
         NioEventLoopGroup bossGroup = new NioEventLoopGroup(2);
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(10);
