@@ -16,7 +16,7 @@ public class ConsumerApplication {
                 application("demo-consumer")
                 .registry(new RegistryConfig("zookeeper://172.29.207.114:2181"))
                 .serialize("JDK")
-                .compressor("gzip")
+                .compress("gzip")
                 .reference(reference);
 
 

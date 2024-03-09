@@ -208,7 +208,7 @@ public class DynamicBootstrap {
         return this;
     }
 
-    public DynamicBootstrap compressor(String type) {
+    public DynamicBootstrap compress(String type) {
         configuration.setCompressorType(type);
         COMPRESS_TYPE = type;
         if (log.isDebugEnabled()){
